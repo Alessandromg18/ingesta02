@@ -1,0 +1,81 @@
+Segunda Parte de códigos Alessandro
+
+1. Levantar BD 
+   docker-compose -f docker-compose.bd.yml up -d
+   docker ps
+
+2. Levantar la API
+   cd microservicio2/
+   docker compose -f docker-compose.api.yml up -d
+   docker ps
+   docker logs -f qa_api_c
+
+3. Ahora hacemos la parte de crear el bucket en el cual se va a hacer la ingesta. Y también hacemos el catalogo de datos    que vamos a usar para la ingesta. Considerar que los datos se van a dar en formato json.
+    
+4. Se ahí en una maquina virtual aparte configuramos todo para la ingesta de datos (YO POR AHORA LO ESTOY HACIENDO EN MI     MV DE DESARROLLO)
+   Ojo ya tener el .aws/credentials hecho y actualizado
+   git clone https://github.com/Alessandromg18/ingesta02.git
+   cd ingesta02/
+   docker build -t ingesta02 .
+   docker run --rm -v ~/.aws:/root/.aws ingesta02
+   
+6. Por ultimo en Athena compruebo si todo esta bien 
+
+7. PASO OPCIONAL: Usando este código de Python se debería generar 20 000 mil registros en SQL de ahí con el SQL formado lo importamos a la tabla en ADMINER. Y si queremos podemos ver en athena lo que paso.
+
+CODIGO PYTHON:
+
+import random
+from datetime import datetime, timedelta
+
+accounts = [
+    "account01", "account02", "account03", "account04", "account05",
+    "account06", "account07", "account08", "account09", "account10",
+    "account11", "account12", "account13", "account14", "account15",
+    "account16", "account17", "account18", "account19", "account20",
+    "account21", "account22", "account23", "account24", "account25",
+    "account26", "account27", "account28", "account29", "account30",
+    "account31", "account32", "account33", "account34", "account35",
+    "account36", "account37", "account38", "account39", "account40",
+    "account41", "account42", "account43", "account44", "account45",
+    "account46", "account47", "account48", "account49", "account50",
+    "account51", "account52", "account53", "account54", "account55",
+    "account56", "account57", "account58", "account59", "account60",
+    "account61", "account62", "account63", "account64", "account65",
+    "account66", "account67", "account68", "account69", "account70",
+    "account71", "account72", "account73", "account74", "account75",
+    "account76", "account77", "account78", "account79", "account80",
+    "account81", "account82", "account83", "account84", "account85",
+    "account86", "account87", "account88", "account89", "account90",
+    "account91", "account92", "account93", "account94", "account95",
+    "account96", "account97", "account98", "account99", "account100"
+]
+
+num_records = 20000
+
+# Fecha de inicio
+start_date = datetime(2024, 1, 1, 0, 0, 0)
+
+# Archivo SQL de salida
+output_path = r"C:\Users\usuario\X\X" # Aqui tu tienes que llenarlo
+
+with open(output_path, "w", encoding="utf-8") as f:
+    f.write("INSERT INTO scraped_account (id, accountName, userId, scrapedAt) VALUES\n")
+    values = []
+
+    for i in range(1, num_records + 1):
+        account = random.choice(accounts)
+        user_id = random.randint(1, 5000)
+        scraped_at = start_date + timedelta(seconds=random.randint(0, 31536000))
+        scraped_str = scraped_at.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+
+        values.append(f"({i}, '{account}', {user_id}, '{scraped_str}')")
+
+        if i % 1000 == 0:
+            f.write(",\n".join(values) + ";\n")
+            if i < num_records:
+                f.write("INSERT INTO scraped_account (id, accountName, userId, scrapedAt) VALUES\n")
+            values = []
+
+print(f"✅ Archivo SQL generado en: {output_path} con {num_records} registros.")
+  
