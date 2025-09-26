@@ -2,9 +2,10 @@ import os
 import pandas as pd
 from sqlalchemy import create_engine
 import boto3
+import json
 
 # ================================
-# 🔧 CONFIGURACIÓN A EDITAR
+# 🔧 CONFIGURACIÓN
 # ================================
 
 # Conexión MySQL
@@ -14,10 +15,10 @@ DB_USER = "root"
 DB_PASS = "utec"
 DB_NAME = "qa_db"
 
-# Nombre del bucket (📌 CAMBIA AQUÍ)
+# Bucket S3
 BUCKET_NAME = "alessandro-ingesta"
 
-# Diccionario de tablas y carpetas en S3 (📌 CAMBIA AQUÍ)
+# Diccionario de tablas y carpetas
 TABLES = {
     "quest_and_answer": "questions_folder/",
     "user_apify_call_historial": "historial_folder/",
@@ -25,50 +26,124 @@ TABLES = {
     "scraped_account": "scraped_folder/"
 }
 
+# Schemas corregidos
+SCHEMAS = {
+    "quest_and_answer": [
+        {"Name": "id", "Type": "int"},
+        {"Name": "user_id", "Type": "int"},
+        {"Name": "admin_id", "Type": "int"},
+        {"Name": "status", "Type": "string"},
+        {"Name": "questionDescription", "Type": "string"},
+        {"Name": "questionDate", "Type": "date"},
+        {"Name": "questionHour", "Type": "string"},
+        {"Name": "answerDescription", "Type": "string"},
+        {"Name": "answerDate", "Type": "date"},
+        {"Name": "answerHour", "Type": "string"},
+        {"Name": "createdAt", "Type": "timestamp"},
+    ],
+    "scraped_account": [
+        {"Name": "id", "Type": "int"},
+        {"Name": "accountName", "Type": "string"},
+        {"Name": "userId", "Type": "int"},
+        {"Name": "scrapedAt", "Type": "timestamp"},
+    ],
+    "user_apify_call_historial": [
+        {"Name": "id", "Type": "int"},
+        {"Name": "user_id", "Type": "int"},
+        {"Name": "startDate", "Type": "timestamp"},
+        {"Name": "endDate", "Type": "timestamp"},
+        {"Name": "executionTime", "Type": "int"},
+    ],
+    "user_apify_filters": [
+        {"Name": "id", "Type": "int"},
+        {"Name": "filterName", "Type": "string"},
+        {"Name": "filterConfig", "Type": "string"},
+        {"Name": "status", "Type": "string"},
+        {"Name": "createdAt", "Type": "timestamp"},
+        {"Name": "historial_id", "Type": "int"},
+    ]
+}
+
 # ================================
-# 🚀 LÓGICA DEL PROGRAMA
+# 🚀 LÓGICA
 # ================================
 
 # Conexión MySQL
 engine = create_engine(f"mysql+pymysql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
 
-# Cliente S3 (usa credenciales montadas en docker run)
+# Cliente S3
 s3 = boto3.client("s3")
 
 
+def clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    """Limpia strings y asegura compatibilidad con Athena"""
+    for col in df.select_dtypes(include=["object"]).columns:
+        df[col] = (
+            df[col]
+            .astype(str)
+            .str.replace(r"[\r\n\t]", " ", regex=True)   # quitar saltos de línea
+            .str.replace(r"[^\x20-\x7E]", "", regex=True)  # quitar no imprimibles
+        )
+    return df
+
+
+def cast_types(df: pd.DataFrame, schema: list) -> pd.DataFrame:
+    """Convierte columnas a los tipos definidos en schema"""
+    for col in schema:
+        name, typ = col["Name"], col["Type"]
+        if name not in df.columns:
+            continue
+        if typ == "int":
+            df[name] = pd.to_numeric(df[name], errors="coerce").astype("Int64")
+        elif typ == "date":
+            df[name] = pd.to_datetime(df[name], errors="coerce").dt.strftime("%Y-%m-%d")
+        elif typ == "timestamp":
+            df[name] = pd.to_datetime(df[name], errors="coerce").dt.strftime("%Y-%m-%d %H:%M:%S")
+        else:  # string
+            df[name] = df[name].astype(str)
+    return df
+
+
+def export_to_ndjson(df: pd.DataFrame, filename: str):
+    """Exporta a NDJSON (una fila = un JSON en una sola línea)"""
+    with open(filename, "w", encoding="utf-8") as f:
+        for _, row in df.iterrows():
+            f.write(json.dumps(row.to_dict(), ensure_ascii=False) + "\n")
+
+
 def main():
-    # 1. Eliminar todos los CSV previos en el bucket
-    print("🔄 Eliminando archivos previos en el bucket...")
+    # 1. Limpiar bucket
+    print("🔄 Limpiando bucket...")
     try:
         objects = s3.list_objects_v2(Bucket=BUCKET_NAME)
         if "Contents" in objects:
             for obj in objects["Contents"]:
-                if obj["Key"].endswith(".csv"):
+                if obj["Key"].endswith(".json"):
                     s3.delete_object(Bucket=BUCKET_NAME, Key=obj["Key"])
-            print("✅ Archivos CSV previos eliminados.")
-        else:
-            print("ℹ️ No había archivos CSV en el bucket.")
+            print("✅ Archivos previos eliminados.")
     except Exception as e:
         print(f"⚠️ Error al limpiar bucket: {e}")
 
-    # 2. Exportar cada tabla y subir a su carpeta
+    # 2. Exportar tablas
     for table, folder in TABLES.items():
         try:
             print(f"📥 Exportando tabla: {table}")
             df = pd.read_sql(f"SELECT * FROM {table}", engine)
 
-            filename = f"{table}.csv"
-            df.to_csv(filename, index=False)
+            # limpiar y castear tipos
+            df = clean_dataframe(df)
+            df = cast_types(df, SCHEMAS[table])
 
-            # Generar clave (carpeta + archivo)
+            # exportar NDJSON
+            filename = f"{table}.json"
+            export_to_ndjson(df, filename)
+
+            # subir a S3
             s3_key = f"{folder}{filename}"
-
-            # 📌 Subir archivo
-            print(f"⬆️ Subiendo {filename} a s3://{BUCKET_NAME}/{s3_key} ...")
+            print(f"⬆️ Subiendo {filename} a s3://{BUCKET_NAME}/{s3_key}")
             s3.upload_file(filename, BUCKET_NAME, s3_key)
-            print(f"✅ {filename} subido correctamente en {folder}")
+            print(f"✅ {filename} subido en {folder}")
 
-            # Borrar archivo local
             os.remove(filename)
         except Exception as e:
             print(f"⚠️ Error con la tabla {table}: {e}")
@@ -76,3 +151,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
