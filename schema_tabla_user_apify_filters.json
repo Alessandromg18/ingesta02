@@ -1,0 +1,26 @@
+[
+  {
+    "Name": "id",
+    "Type": "int"
+  },
+  {
+    "Name": "filterName",
+    "Type": "string"
+  },
+  {
+    "Name": "filterConfig",
+    "Type": "string"
+  },
+  {
+    "Name": "status",
+    "Type": "string"
+  },
+  {
+    "Name": "createdAt",
+    "Type": "timestamp"
+  },
+  {
+    "Name": "historial_id",
+    "Type": "int"
+  }
+]

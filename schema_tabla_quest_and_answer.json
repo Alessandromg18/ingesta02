@@ -1,0 +1,46 @@
+[
+  {
+    "Name": "id",
+    "Type": "int"
+  },
+  {
+    "Name": "user_id",
+    "Type": "int"
+  },
+  {
+    "Name": "admin_id",
+    "Type": "int"
+  },
+  {
+    "Name": "status",
+    "Type": "string"
+  },
+  {
+    "Name": "questionDescription",
+    "Type": "string"
+  },
+  {
+    "Name": "questionDate",
+    "Type": "date"
+  },
+  {
+    "Name": "questionHour",
+    "Type": "string"
+  },
+  {
+    "Name": "answerDescription",
+    "Type": "string"
+  },
+  {
+    "Name": "answerDate",
+    "Type": "date"
+  },
+  {
+    "Name": "answerHour",
+    "Type": "string"
+  },
+  {
+    "Name": "createdAt",
+    "Type": "timestamp"
+  }
+]

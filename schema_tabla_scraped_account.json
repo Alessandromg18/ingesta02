@@ -1,0 +1,18 @@
+[
+  {
+    "Name": "id",
+    "Type": "int"
+  },
+  {
+    "Name": "accountName",
+    "Type": "string"
+  },
+  {
+    "Name": "userId",
+    "Type": "int"
+  },
+  {
+    "Name": "scrapedAt",
+    "Type": "timestamp"
+  }
+]

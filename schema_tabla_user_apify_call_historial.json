@@ -1,0 +1,22 @@
+[
+  {
+    "Name": "id",
+    "Type": "int"
+  },
+  {
+    "Name": "user_id",
+    "Type": "int"
+  },
+  {
+    "Name": "startDate",
+    "Type": "timestamp"
+  },
+  {
+    "Name": "endDate",
+    "Type": "timestamp"
+  },
+  {
+    "Name": "executionTime",
+    "Type": "int"
+  }
+]
